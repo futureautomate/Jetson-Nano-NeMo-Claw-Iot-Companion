@@ -1,0 +1,9 @@
+# Normalize line endings: repo is LF, even though it's authored on Windows.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.sh  text eol=lf
+*.png binary
+*.jpg binary
+*.stl binary
+*.3mf binary

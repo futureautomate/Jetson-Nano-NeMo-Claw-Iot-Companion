@@ -1,0 +1,33 @@
+# PyQt5 kiosk dashboard autostart for the IoT Desk Companion.
+#
+# Install as a *user* service (it needs the graphical session for the HDMI screen):
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp ~/jetson-companion/systemd/companion-dashboard.service ~/.config/systemd/user/
+#   loginctl enable-linger "$USER"          # so it runs without an interactive login
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now companion-dashboard
+#   systemctl --user status companion-dashboard
+#   journalctl --user -u companion-dashboard -f
+#
+# (Adjust ExecStart once src/ui/dashboard.py exists. For now it runs the skeleton.)
+
+[Unit]
+Description=Jetson Nano NeMo Claw IoT Desk Companion — HDMI dashboard
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/jetson-companion
+Environment=DISPLAY=:0
+Environment=QT_QPA_PLATFORM=xcb
+# Once the UI exists:  ExecStart=/usr/bin/python3 -m src.ui.dashboard
+ExecStart=/usr/bin/python3 -m src.main
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:%h/jetson-companion-data/companion.log
+StandardError=append:%h/jetson-companion-data/companion.log
+
+[Install]
+WantedBy=graphical-session.target

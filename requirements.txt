@@ -1,0 +1,24 @@
+# Python deps for the Jetson side of the IoT Desk Companion.
+# NOTE: preliminary — not version-pinned yet. The Jetson runs Python 3.6.9 (system);
+# some of these may need a newer Python (venv / pyenv / Docker) — verify on-device
+# via scripts/jetson_bootstrap.sh before pinning.
+
+# --- UI: PyQt5 dashboard on the 4.3" HDMI DWIN screen ---
+PyQt5            # if no aarch64 wheel for py3.6, fall back to system 'python3-pyqt5' apt package
+
+# --- GPIO / sensors / actuators ---
+Jetson.GPIO      # relays, LED strip, buzzer, PIR, rotary encoder (digital pins)
+# DHT11/DHT22 temp+humidity — pick ONE of these on-device:
+#   - Adafruit_DHT            (legacy, works on Nano, finicky timing)
+#   - adafruit-circuitpython-dht  (needs adafruit-blinka; check py3.6 support)
+# MQ2 gas/smoke is ANALOG -> read via an ADS1115 ADC over I2C:
+adafruit-circuitpython-ads1x15
+adafruit-blinka  # provides board/busio for the ADS1115 (verify py3.6 compatibility)
+
+# --- notifications ---
+requests
+python-telegram-bot   # only if we send Telegram alerts ourselves rather than via NemoClaw channels
+
+# --- NemoClaw is NOT a pip package ---
+# Installed separately:  curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
+# Our code talks to it via the `nemoclaw` / `openclaw` CLI (or its local gateway).

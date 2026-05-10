@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+*.env
+secrets.json
+config.local.*
+
+# Logs / runtime data
+*.log
+logs/
+data/
+*.sqlite
+*.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/projects/
+.claude/memory/
+
+# Jetson runtime artifacts (in case repo is rsynced onto the device)
+*.pid
