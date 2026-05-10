@@ -59,9 +59,20 @@ BOARD pins **12** (BCM 18), **19** (BCM 10 / SPI MOSI), **21** (BCM 9 / SPI MISO
 - `python3-pyqt5` (apt, 5.10) — the HDMI dashboard. `python-telegram-bot` (pip --user) — alerts.
 - NemoClaw runs in its own sandbox (its own Python) — installed via `curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash`; our code talks to it via the `nemoclaw` / `openclaw` CLI.
 
+## ⚠️ Jetson.GPIO has no internal pull resistors
+`Jetson.GPIO.setup(pin, IN, pull_up_down=...)` is **ignored** (it warns once and moves on).
+So any input that needs a defined idle level needs an **external** resistor:
+- **Rotary encoder `SW`** (pin 36): add a 10 kΩ pull-up to 3.3 V if your encoder module doesn't already have one. (With nothing wired the floating pin reads LOW → looks permanently "pressed" — that's expected on the bench until it's connected.)
+- DHT11 data: the 4.7 kΩ pull-up on pin 7 is required anyway (part of the 1-wire protocol).
+- PIR / MQ2 `DO` / sound `DO` / LDR `DO`: these modules actively drive the line HIGH/LOW, so no pull-up needed — but **verify the HIGH level is ≤ 3.3 V** before connecting to the Jetson.
+- Encoder `A`/`B` (pins 29/31): most M274-style modules have onboard pull-ups; if it's a bare encoder, add 10 kΩ pull-ups.
+
 ## TODO before/while writing the rest of the code
 - [ ] Bench-confirm relay module polarity (active-LOW vs active-HIGH) → `active_low` in `pins.py`
 - [ ] Confirm PIR `OUT` (and sound/LDR `DO`) are ≤ 3.3 V into the Jetson (add a divider/level-shifter if 5 V)
-- [ ] Decide a buzzer drive that doesn't fight the motor PWM (both are software PWM on different pins — fine, just watch CPU)
-- [ ] If/when the LED strip is wired: confirm it's a plain strip (relay/MOSFET on/off is enough) vs addressable
-- [ ] Wire the bench, then sanity-run `python3 -m src.main --selftest` on the Jetson
+- [ ] Add the external pull-up(s) noted above (encoder SW at minimum)
+- [ ] If/when the LED strip is wired: confirm it's a plain strip (relay/MOSFET on/off is enough) vs addressable → enable `mood_light` in `pins.py`
+- [ ] Wire the bench, then run `python3 -m src.main --selftest` (exercises actuators) and `--monitor` (live sensor readout)
+
+## Status (2026-05-10)
+✅ Code skeleton runs on the Jetson with the real `Jetson.GPIO` backend — `--selftest` drives the relay/fan-PWM/buzzer-PWM and reads all sensor pins (floating values until wired). Hardware not yet wired to the bench. Next: NemoClaw tool registration (`src/agent/`) + the PyQt5 dashboard (`src/ui/`).

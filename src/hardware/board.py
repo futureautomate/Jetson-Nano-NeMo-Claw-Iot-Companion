@@ -55,6 +55,11 @@ class _Board(object):
 
         if not _FORCE_SIM:
             try:
+                import warnings
+                # Jetson.GPIO has no internal pull resistors; it warns on every setup()
+                # with pull_up_down — silence the spam (we use external pull-ups; see
+                # docs/hardware.md). We still pass the param so the code stays portable.
+                warnings.filterwarnings("ignore", message=".*ignores setup.*pull_up_down.*")
                 import Jetson.GPIO as GPIO  # type: ignore
                 self._GPIO = GPIO
                 self.real = True
