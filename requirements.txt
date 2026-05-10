@@ -1,32 +1,34 @@
 # Python deps for the Jetson side of the IoT Desk Companion.
-# NOTE: preliminary — not version-pinned yet. The Jetson runs Python 3.6.9 (system);
-# some of these may need a newer Python (venv / pyenv / Docker) — verify on-device
-# via scripts/jetson_bootstrap.sh before pinning.
+#
+# Reality check (from scripts/jetson_bootstrap.sh on the device): the Nano runs
+# Python 3.6.9, and the Adafruit CircuitPython / Blinka stack does NOT install on
+# 3.6 (its build dep setuptools_scm needs 3.7+). So the hardware layer is built on:
+#   - Jetson.GPIO            (already preinstalled on JetPack — relays, PIR, MQ2 DO,
+#                             sound/vibration DO, encoder, buzzer, DC-motor PWM via L293D)
+#   - python3-smbus (apt)    (I2C — e.g. BMP180 if we add it)
+#   - a small bit-bang DHT11 reader using Jetson.GPIO + retries (no extra lib)
+# No Blinka, no CircuitPython, no ADС chip needed for v1.
 
 # --- UI: PyQt5 dashboard on the 4.3" HDMI DWIN screen ---
-# Prefer the apt package on the Nano (python3-pyqt5); pip wheel may not exist for py3.6/aarch64.
+# Installed via apt on the Nano (python3-pyqt5 5.10) — no pip wheel for py3.6/aarch64.
+# Listed here for non-Jetson dev/lint environments only.
 PyQt5
 
-# --- GPIO: relays, PIR, MQ2 digital, rotary encoder, buzzer ---
+# --- GPIO (preinstalled on JetPack; pip line is a no-op safety net) ---
 Jetson.GPIO
 
-# --- DHT11/DHT22 temp+humidity (digital 1-wire on pin 7) ---
-adafruit-circuitpython-dht        # needs adafruit-blinka; verify py3.6 support on-device
-
-# --- MQ2 analog level via ADS1115 I2C ADC (channel A0, addr 0x48) ---
-adafruit-circuitpython-ads1x15
-
-# --- WS2812 LED strip on SPI0 MOSI (pin 19) ---
-# NOT rpi_ws281x (that's Raspberry-Pi-only). Plain neopixel bit-bangs too jittery on Jetson.
-adafruit-circuitpython-neopixel-spi
-
-# --- pulled in by the adafruit-circuitpython-* libs ---
-adafruit-blinka                   # board/busio shims; the py3.6 question lives here
+# --- I2C (optional, only if we add BMP180 pressure or another I2C sensor) ---
+# python3-smbus comes from apt; smbus2 is a nicer pure-Python alternative if wanted.
+smbus2
 
 # --- notifications ---
 requests
-python-telegram-bot               # only if we send Telegram alerts ourselves rather than via NemoClaw channels
+python-telegram-bot               # alerts (or use NemoClaw's built-in channel messaging instead)
 
 # --- NemoClaw is NOT a pip package ---
 # Installed separately:  curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
-# Our code talks to it via the `nemoclaw` / `openclaw` CLI (or its local gateway).
+# Runs in its own sandbox (own Python); our code talks to it via the `nemoclaw` /
+# `openclaw` CLI (or its local gateway), so the host's Python 3.6 doesn't constrain it.
+
+# --- NOT used (kept here as a note): adafruit-blinka, adafruit-circuitpython-*,
+#     rpi_ws281x — incompatible with Python 3.6 / not Jetson-appropriate.

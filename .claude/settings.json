@@ -6,7 +6,9 @@
       "Bash(gh auth *)",
       "Bash(gh repo *)",
       "Bash(git remote *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(ssh jetson *)",
+      "Bash(tar -czf - --exclude=.git --exclude=__pycache__ --exclude='*.pyc' --exclude=.venv --exclude=.vscode --exclude=.idea --exclude=.claude --exclude=data --exclude='*.log' -C \"/d/Projects/Jetson-Nano-NeMo-Claw-Iot-Companion\" .)"
     ]
   }
 }

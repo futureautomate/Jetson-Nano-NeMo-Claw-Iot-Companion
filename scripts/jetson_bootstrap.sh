@@ -17,27 +17,34 @@ mkdir -p "$DATA_DIR"
 echo "==> runtime data dir: $DATA_DIR"
 
 echo "==> apt packages (GPIO, I2C, SPI, PyQt5, build tools)"
-sudo apt-get update -y
-sudo apt-get install -y \
-    python3-pip python3-dev python3-setuptools \
-    python3-pyqt5 \
-    i2c-tools python3-smbus \
-    libgpiod2 \
+# Package set for JetPack 4.6 / Ubuntu 18.04 (bionic). NOTE: no 'libgpiod2' here —
+# that name only exists on Ubuntu 20.04+; bionic has libgpiod1/-dev, and Jetson.GPIO
+# doesn't need libgpiod at all. We install adafruit-blinka's gpiod backend optionally.
+APT_PKGS=(
+    python3-pip python3-dev python3-setuptools
+    python3-pyqt5
+    i2c-tools python3-smbus
+    libgpiod-dev python3-libgpiod gpiod
     git curl
+)
+sudo apt-get update -y
+# Install as a group; if some package name is wrong on this release, fall back to
+# installing them one at a time so one bad name doesn't block everything.
+if ! sudo apt-get install -y "${APT_PKGS[@]}"; then
+    echo "    (group install failed — retrying packages individually)"
+    for p in "${APT_PKGS[@]}"; do
+        sudo apt-get install -y "$p" || echo "    !! skipped apt package: $p"
+    done
+fi
 
 echo "==> python pip deps (user install)"
 python3 -m pip install --user --upgrade pip
-# Jetson.GPIO is usually preinstalled on JetPack; install/upgrade just in case.
-python3 -m pip install --user Jetson.GPIO || true
-# DHT, ADS1115, WS2812-on-SPI — all need adafruit-blinka, whose py3.6 support is iffy.
-# Don't hard-fail; if this breaks we move the hardware layer into a venv / Docker.
-python3 -m pip install --user \
-    adafruit-circuitpython-dht \
-    adafruit-circuitpython-ads1x15 \
-    adafruit-circuitpython-neopixel-spi \
-    adafruit-blinka || \
-    echo "    !! adafruit libs failed on this Python (3.6) — revisit (venv / Docker / py3.8+)."
-python3 -m pip install --user requests python-telegram-bot || true
+# NOTE: the Adafruit CircuitPython / Blinka stack does NOT install on Python 3.6
+# (build dep setuptools_scm needs 3.7+) — so we deliberately do NOT install it.
+# Hardware layer = Jetson.GPIO (preinstalled) + python3-smbus (apt, above) + a
+# small bit-bang DHT11 reader. Only light pure-Python extras here:
+python3 -m pip install --user Jetson.GPIO || true        # no-op if already present
+python3 -m pip install --user smbus2 requests python-telegram-bot || true
 
 echo "==> GPIO / I2C permissions for user '$USER'"
 sudo groupadd -f gpio
@@ -49,10 +56,8 @@ sudo udevadm control --reload-rules || true
 echo
 echo "==> Done. Notes:"
 echo "    * Log out / back in (or reboot) for the new groups to take effect."
-echo "    * If using the WS2812 LED strip on SPI0 MOSI (pin 19), enable SPI0:"
-echo "        sudo /opt/nvidia/jetson-io/jetson-io.py     # enable 'spi1' header config, then reboot"
 echo "    * Quick checks:"
-echo "        i2cdetect -y -r 1                 # should show 0x48 once the ADS1115 is wired"
+echo "        i2cdetect -y -r 1                 # lists I2C devices (e.g. BMP180 if wired)"
 echo "        python3 -m src.main               # prints the registered hardware"
 echo "    * Install NemoClaw:  curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash"
 echo "    * Autostart the dashboard later:  see systemd/companion-dashboard.service"
