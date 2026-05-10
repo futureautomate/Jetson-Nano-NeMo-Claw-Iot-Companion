@@ -1,55 +1,74 @@
 # Hardware — pin map & wiring notes
 
-> This file is the **authoritative** pin map for the code (`src/hardware/pins.py` mirrors it).
-> The Notion brief is the design narrative; if they disagree, fix Notion to match this.
+> **Authoritative** pin map for the code. `src/hardware/pins.py` mirrors this file.
+> Synced to the Notion brief (Project Tracker) as of 2026-05-10 — keep them in step.
+>
+> All pin numbers are **BOARD numbers** (physical position on the Jetson Nano 40-pin
+> header) — i.e. what `Jetson.GPIO` uses after `GPIO.setmode(GPIO.BOARD)`. BCM numbers
+> are given in parentheses for reference. The Jetson Nano has **no analog pins**, so the
+> MQ2 analog level is read via an **ADS1115 I²C ADC** on physical pins 3 (SDA) / 5 (SCL).
 
-## Important corrections vs. the original brief
-
-1. **The Jetson Nano has no analog input pins.** "Pin A0/A1/A2" from the brief doesn't exist on a Nano.
-   - DHT11/DHT22 and PIR are *digital* — they go on regular GPIO pins, fine.
-   - **MQ2 is analog** (it outputs a voltage proportional to gas concentration, plus a digital "threshold crossed" line). The analog `AOUT` must go through an external ADC. Plan: **ADS1115** (4-channel 16-bit I²C ADC) on the Jetson's I²C bus. The MQ2 `DOUT` (digital comparator) can additionally go on a spare GPIO if we want a fast threshold interrupt.
-2. **Sensor naming:** start with **DHT11** (cheap, in inventory), swap to **DHT22** later for accuracy. Code should treat the model as a config value, not hard-code it.
-3. **Gas sensor:** **MQ2** (smoke / LPG / methane / alcohol / H₂), *not* MQ-135 — MQ2 reacts to everyday smoke/lighter events that demo well on camera.
-4. **Relays drive nothing on the AC side.** The relay *click* + the module's onboard indicator LED is the on-camera proof that the agent acted. Pin numbers below are the relay module's control inputs.
-5. **GPIO numbering:** numbers below are **BOARD pin numbers** (the physical 40-pin header), which is what `Jetson.GPIO` uses with `GPIO.setmode(GPIO.BOARD)`. Adjust once the wiring is finalized on the bench.
+## Hardware substitutions vs. the original concept
+- **DHT11** now (DHT22 is a drop-in upgrade later — treated as a config value, not hard-coded).
+- **MQ2** instead of MQ-135 — reacts to everyday smoke/lighter events that demo well on camera.
+- **ADS1115 I²C ADC** added — required because the Nano can't read the MQ2's analog output directly.
 
 ## Sensors
 
-| Sensor | Connection | Jetson pin (BOARD) | Notes |
+| Sensor | Interface | Pin (BOARD / BCM) | Wiring notes |
 |---|---|---|---|
-| DHT11 (→ DHT22) | 1-wire data | TBD (e.g. 7) | digital; needs a pull-up (10k) on data |
-| PIR motion | digital OUT | TBD (e.g. 11) | 3.3V logic; warm-up ~30–60 s after power |
-| MQ2 — analog | `AOUT` → ADS1115 ch A0 | I²C (pins 3 SDA / 5 SCL) | ADS1115 addr 0x48; MQ2 needs ~24–48 h burn-in for stable readings, ~minutes warm-up each boot |
-| MQ2 — digital | `DOUT` | TBD (e.g. 13) | optional fast threshold line; pot on the module sets the trip point |
-| Rotary encoder | A / B / SW | TBD (e.g. 16 / 18 / 22) | quadrature A/B + push switch; debounce in software |
-| Logitech C270 | USB | — | `/dev/video0`; only used by the vision-aware variant |
+| DHT11 (→ DHT22) | digital 1-wire | **7** (BCM 4) | 4.7 kΩ pull-up from data → 3.3 V; module powered from 3.3 V or 5 V (data is 3.3 V-safe) |
+| PIR motion (HC-SR501) | digital in | **11** (BCM 17) | module powered from 5 V; OUT is usually 3.3 V — *verify*; ~30–60 s warm-up after power |
+| MQ2 — digital `DO` | digital in | **13** (BCM 27) | HIGH when gas/smoke crosses the onboard pot threshold — fast hardware-level trigger |
+| MQ2 — analog `AO` | I²C via ADS1115 | **ADS1115 ch A0** (I²C pins 3 SDA / 5 SCL) | continuous level for trend reasoning; ADS1115 addr **0x48** (ADDR→GND). If `AO` swings to 5 V, add a divider — Jetson + ADS1115 @3.3 V can't take 5 V |
+| Rotary encoder `A` | digital in | **29** (BCM 5) | quadrature A; debounce in software |
+| Rotary encoder `B` | digital in | **31** (BCM 6) | quadrature B |
+| Rotary encoder `SW` | digital in | **33** (BCM 13) | push switch (active-LOW with internal pull-up); encoder VCC→3.3 V |
+| Logitech C270 | USB | `/dev/video0` | optional — only the vision-aware variant uses it |
 
 ## Actuators
 
-| Actuator | Connection | Jetson pin (BOARD) | Notes |
+| Actuator | Interface | Pin (BOARD / BCM) | Wiring notes |
 |---|---|---|---|
-| Relay 1 — "Fan" | relay module IN1 | TBD (e.g. 29) | most cheap relay boards are **active-LOW** (drive LOW = energize); confirm on the bench |
-| Relay 2 — "Lamp" | relay module IN2 | TBD (e.g. 31) | same |
-| (Relay 3 / 4 spare) | IN3 / IN4 | TBD | 4-channel module; spares for future loads |
-| LED strip | data / gate | TBD (e.g. 33) | if it's an addressable strip (WS2812) it needs precise timing — likely a small MCU or a PWM-friendly approach; if it's a plain 12V strip, switch it via a MOSFET/relay |
-| Passive buzzer | signal | TBD (e.g. 32 — PWM) | passive buzzer needs a PWM/tone signal, not just HIGH/LOW |
+| Relay 1 — "Fan" | digital out | **16** (BCM 23) | relay module IN1; VCC→5 V, GND→GND. **No AC load** — relay click + onboard LED is the proof. Most cheap boards are **active-LOW** — *confirm on bench* |
+| Relay 2 — "Lamp" | digital out | **18** (BCM 24) | relay module IN2; same notes as Relay 1 |
+| LED strip (WS2812) | SPI MOSI | **19** (BCM 10, SPI0 MOSI) | drive WS2812 data off SPI MOSI — the reliable approach on Jetson (Python can't bit-bang the timing). **5 V power from an external supply, not the Jetson 5 V rail**; common ground. See library note below |
+| Passive buzzer | digital out / PWM | **22** (BCM 25) | passive buzzer wants a tone/PWM signal, not steady HIGH/LOW; GND→GND |
 
-## Power notes
+## I²C / SPI buses in use
 
-- MQ2 has a heater coil — budget ~150 mA @ 5V *per sensor*; don't power it from a 3.3V rail. Use the Jetson 5V pin only if the supply has headroom, otherwise a separate 5V supply with common ground.
-- Relay module: power the relay coils from 5V (often a separate `JD-VCC`), keep the logic side referenced to the Jetson's 3.3V GPIO; many boards have an opto-isolator + jumper for exactly this.
-- The Jetson Nano + HDMI display + USB webcam already pull a fair bit; use a solid 5V/4A barrel supply (not micro-USB) and don't hang the relay coils + MQ2 heaters off the Jetson's 5V pins.
+| Bus | Pins (BOARD) | Device | Address | Purpose |
+|---|---|---|---|---|
+| I²C-1 | 3 (SDA), 5 (SCL) | ADS1115 | 0x48 | MQ2 analog read — 3 spare channels (A1–A3) for future analog sensors (LDR, etc.) |
+| SPI0 | 19 (MOSI), 23 (SCLK), 24 (CS0) | WS2812 LED strip | — | only MOSI is used for WS2812; enable SPI0 via `jetson-io` |
 
-## I²C / buses in use
+> ⚠️ The encoder uses pins 29/31/33; the LED strip data is on pin 19 (SPI MOSI) — earlier drafts had the LED on 33, that's now the encoder switch. Don't double-book pins when adding things.
 
-| Bus | Device | Address | Purpose |
-|---|---|---|---|
-| I²C-1 (pins 3/5) | ADS1115 | 0x48 | MQ2 analog read (and headroom for 3 more analog sensors — LDR, etc.) |
+## Enabling I²C / SPI on the Nano
+
+JetPack usually has I²C-1 enabled by default. If `i2cdetect -y -r 1` doesn't show `0x48`, or to enable SPI0 for the LED strip:
+
+```bash
+sudo /opt/nvidia/jetson-io/jetson-io.py     # enable "spi1" (header SPI0) ; reboot after
+i2cdetect -y -r 1                            # expect UU/-- grid with 0x48 once ADS1115 is wired
+```
+
+## LED strip library note
+
+The Notion brief lists `rpi_ws281x` / `adafruit-circuitpython-neopixel` — but on the Jetson Nano:
+- `rpi_ws281x` is Raspberry-Pi-specific (uses the Pi's PWM/PCM/SPI DMA) — **won't work**.
+- Plain `adafruit-circuitpython-neopixel` bit-bangs from Python — too jittery on the Nano.
+- ✅ Use **`adafruit-circuitpython-neopixel-spi`**, driving WS2812 data from SPI0 MOSI (pin 19). That's the path `requirements.txt` / `jetson_bootstrap.sh` should converge on. (If the strip is actually a plain 12 V analog strip rather than WS2812, switch it with a logic-level MOSFET instead and ignore all of this.)
+
+## Power budget reminders
+- MQ2 heater ≈ 150 mA @ 5 V *per sensor* — needs 5 V, not 3.3 V. Don't hang it (or the relay coils, or the LED strip) off the Jetson's 5 V header pins; use a separate 5 V supply with common ground.
+- Jetson Nano + HDMI display + USB webcam already pulls a fair bit — power the Nano from a solid 5 V/4 A barrel-jack supply (set `J48` jumper), not micro-USB.
+- Relay module: power the coil side from 5 V (often a separate `JD-VCC`), keep the logic side referenced to the Jetson's 3.3 V; use the opto-isolator jumper if the board has one.
 
 ## TODO before writing sensor/actuator code
-
-- [ ] Bench-confirm relay module polarity (active-LOW vs active-HIGH)
-- [ ] Decide LED strip type (addressable vs plain) — drives the wiring + library choice
-- [ ] Confirm `Jetson.GPIO` PWM availability on the Nano for the passive buzzer (limited HW PWM pins; may need software PWM or a tone via a timer)
-- [ ] Lock the actual header pins and update this table + `src/hardware/pins.py`
-- [ ] Verify ADS1115 + `adafruit-circuitpython-ads1x15` works under the Jetson's Python (3.6.9) or a venv
+- [ ] Bench-confirm relay module polarity (active-LOW vs active-HIGH) → `active_low` in `pins.py`
+- [ ] Confirm PIR `OUT` and MQ2 `DO` are ≤3.3 V (add a divider/level-shifter if 5 V)
+- [ ] Confirm WS2812 vs plain 12 V strip → drives the library + wiring choice
+- [ ] Decide buzzer drive: HW PWM pin vs software PWM vs a simple transistor + tone
+- [ ] Verify `adafruit-circuitpython-ads1x15` + `adafruit-blinka` run under the Nano's Python 3.6.9 (else: venv with newer Python, or Docker)
+- [ ] Run `jetson-io` to enable SPI0 if the LED strip is WS2812-on-SPI

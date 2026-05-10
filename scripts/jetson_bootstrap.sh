@@ -16,7 +16,7 @@ DATA_DIR="${HOME}/jetson-companion-data"
 mkdir -p "$DATA_DIR"
 echo "==> runtime data dir: $DATA_DIR"
 
-echo "==> apt packages (GPIO, I2C, PyQt5, build tools)"
+echo "==> apt packages (GPIO, I2C, SPI, PyQt5, build tools)"
 sudo apt-get update -y
 sudo apt-get install -y \
     python3-pip python3-dev python3-setuptools \
@@ -29,9 +29,14 @@ echo "==> python pip deps (user install)"
 python3 -m pip install --user --upgrade pip
 # Jetson.GPIO is usually preinstalled on JetPack; install/upgrade just in case.
 python3 -m pip install --user Jetson.GPIO || true
-# ADS1115 (MQ2 analog). adafruit-blinka support for py3.6 is iffy — don't hard-fail.
-python3 -m pip install --user adafruit-circuitpython-ads1x15 adafruit-blinka || \
-    echo "    !! adafruit libs failed on this Python — revisit (venv / Docker / py3.8+)."
+# DHT, ADS1115, WS2812-on-SPI — all need adafruit-blinka, whose py3.6 support is iffy.
+# Don't hard-fail; if this breaks we move the hardware layer into a venv / Docker.
+python3 -m pip install --user \
+    adafruit-circuitpython-dht \
+    adafruit-circuitpython-ads1x15 \
+    adafruit-circuitpython-neopixel-spi \
+    adafruit-blinka || \
+    echo "    !! adafruit libs failed on this Python (3.6) — revisit (venv / Docker / py3.8+)."
 python3 -m pip install --user requests python-telegram-bot || true
 
 echo "==> GPIO / I2C permissions for user '$USER'"
@@ -44,6 +49,8 @@ sudo udevadm control --reload-rules || true
 echo
 echo "==> Done. Notes:"
 echo "    * Log out / back in (or reboot) for the new groups to take effect."
+echo "    * If using the WS2812 LED strip on SPI0 MOSI (pin 19), enable SPI0:"
+echo "        sudo /opt/nvidia/jetson-io/jetson-io.py     # enable 'spi1' header config, then reboot"
 echo "    * Quick checks:"
 echo "        i2cdetect -y -r 1                 # should show 0x48 once the ADS1115 is wired"
 echo "        python3 -m src.main               # prints the registered hardware"

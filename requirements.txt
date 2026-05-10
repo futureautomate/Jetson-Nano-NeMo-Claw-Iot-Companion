@@ -4,20 +4,28 @@
 # via scripts/jetson_bootstrap.sh before pinning.
 
 # --- UI: PyQt5 dashboard on the 4.3" HDMI DWIN screen ---
-PyQt5            # if no aarch64 wheel for py3.6, fall back to system 'python3-pyqt5' apt package
+# Prefer the apt package on the Nano (python3-pyqt5); pip wheel may not exist for py3.6/aarch64.
+PyQt5
 
-# --- GPIO / sensors / actuators ---
-Jetson.GPIO      # relays, LED strip, buzzer, PIR, rotary encoder (digital pins)
-# DHT11/DHT22 temp+humidity — pick ONE of these on-device:
-#   - Adafruit_DHT            (legacy, works on Nano, finicky timing)
-#   - adafruit-circuitpython-dht  (needs adafruit-blinka; check py3.6 support)
-# MQ2 gas/smoke is ANALOG -> read via an ADS1115 ADC over I2C:
+# --- GPIO: relays, PIR, MQ2 digital, rotary encoder, buzzer ---
+Jetson.GPIO
+
+# --- DHT11/DHT22 temp+humidity (digital 1-wire on pin 7) ---
+adafruit-circuitpython-dht        # needs adafruit-blinka; verify py3.6 support on-device
+
+# --- MQ2 analog level via ADS1115 I2C ADC (channel A0, addr 0x48) ---
 adafruit-circuitpython-ads1x15
-adafruit-blinka  # provides board/busio for the ADS1115 (verify py3.6 compatibility)
+
+# --- WS2812 LED strip on SPI0 MOSI (pin 19) ---
+# NOT rpi_ws281x (that's Raspberry-Pi-only). Plain neopixel bit-bangs too jittery on Jetson.
+adafruit-circuitpython-neopixel-spi
+
+# --- pulled in by the adafruit-circuitpython-* libs ---
+adafruit-blinka                   # board/busio shims; the py3.6 question lives here
 
 # --- notifications ---
 requests
-python-telegram-bot   # only if we send Telegram alerts ourselves rather than via NemoClaw channels
+python-telegram-bot               # only if we send Telegram alerts ourselves rather than via NemoClaw channels
 
 # --- NemoClaw is NOT a pip package ---
 # Installed separately:  curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
